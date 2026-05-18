@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>宋禮 SUNG LI SELECT | 畢業小熊編織花束預購</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Noto+Serif+TC:wght@400;600;900&display=swap');
+        
+        .font-serif-tc { font-family: 'Noto Serif TC', serif; }
+        .font-cinzel { font-family: 'Cinzel', serif; }
+        body { background-color: #0d0d0d; color: #f5f5f5; -webkit-tap-highlight-color: transparent; }
+        
+        /* 訂製金色滾邊與滾動條 */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #0d0d0d; }
+        ::-webkit-scrollbar-thumb { background: #c5a880; border-radius: 3px; }
+
+        /* 核心優化：強制將瀏覽器原生行事曆按鈕變更為精緻香檳金色 */
+        input[type="date"]::-webkit-calendar-picker-indicator {
+            filter: invert(80%) sepia(13%) saturate(1005%) hue-rotate(344deg) brightness(89%) contrast(85%);
+            cursor: pointer;
+            padding: 5px;
+            border-radius: 4px;
+            transition: background-color 0.2s;
+        }
+        input[type="date"]::-webkit-calendar-picker-indicator:hover {
+            background-color: rgba(197, 168, 128, 0.15);
+        }
+    </style>
+</head>
+<body class="font-serif-tc selection:bg-[#c5a880] selection:text-[#0d0d0d]">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo } = React;
+
+        // --- 設定區 ---
+        // 請確保此處為您 Google Apps Script 的部署 Web App URL
+        const GAS_URL = "https://script.google.com/macros/s/AKfycby7qSpHzKkUeDQixbI2eLS9uk9F4J8ZEWx-5O1yEEdOC01cxfh22u3YGiwn4OIfTUvS/exec"; 
+
+        const BOUQUET_PRICE = 499;
+
+        // 圖片檔名已重構為乾淨的英文，避免 Emoji 與中文編碼導致破圖
+        const VARIANTS = [
+            { 
+                id: '藍', 
+                name: '藍韻 BLUE BREEZE', 
+                price: BOUQUET_PRICE,
+                desc: '澄澈如蔚藍微風，編織出青春最純粹的祝福。',
+                img: 'blue.jpg',
+                badge: '青春藍韻'
+            },
+            { 
+                id: '粉', 
+                name: '粉馨 PINK BLOOM', 
+                price: BOUQUET_PRICE,
+                desc: '溫柔的粉馨綻放，承載畢業季最溫暖難忘的記憶。',
+                img: 'pink.jpg',
+                badge: '甜美粉馨'
+            },
+            { 
+                id: '黃', 
+                name: '暖陽 WARM SUNSHINE', 
+                price: BOUQUET_PRICE,
+                desc: '如煦煦暖陽般耀眼，祝願未來旅程充滿無限希望。',
+                img: 'yellow.jpg',
+                badge: '燦爛暖陽'
+            }
+        ];
+
+        const LOCATIONS = [
+            "捷運江子翠站五號出口",
+            "捷運蘆洲站三號出口"
+        ];
+
+        const App = () => {
+            const [selectedStyle, setSelectedStyle] = useState('藍');
+            const [quantity, setQuantity] = useState(1);
+            const [location, setLocation] = useState(LOCATIONS[0]);
+            const [pickupDate, setPickupDate] = useState('2026-06-01');
+            const [custName, setCustName] = useState('');
+            const [custPhone, setCustPhone] = useState('');
+            const [isSubmitting, setIsSubmitting] = useState(false);
+            const [submitStatus, setSubmitStatus] = useState(null); // 'success' | 'error'
+
+            useEffect(() => {
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+            }, [submitStatus, selectedStyle]);
+
+            // 計算當前選擇款式的詳細資訊
+            const currentVariant = useMemo(() => {
+                return VARIANTS.find(v => v.id === selectedStyle);
+            }, [selectedStyle]);
+
+            // 處理預訂提交
+            const handleOrderSubmit = async (e) => {
+                e.preventDefault();
+                if (!custName.trim() || !custPhone.trim()) {
+                    alert("請填寫您的姓名與電話聯絡資訊唷！");
+                    return;
+                }
+                
+                setIsSubmitting(true);
+                setSubmitStatus(null);
+
+                // 將地點簡化以便寫入試算表
+                const shortLoc = location.includes("江子翠") ? "江子翠" : "蘆洲";
+
+                // 將 預訂地點 與 日期 包裝進 "channel" (通路) 欄位
+                const payload = {
+                    action: "addSale",
+                    id: 'S' + Date.now(),
+                    timestamp: Date.now(),
+                    channel: `預約-${shortLoc} (${pickupDate})`,
+                    qty: quantity,
+                    style: selectedStyle,
+                    custName: custName,
+                    custPhone: custPhone,
+                    gross: BOUQUET_PRICE * quantity,
+                    fee: 0,
+                    seller: "線上預約"
+                };
+
+                try {
+                    await fetch(GAS_URL, {
+                        method: 'POST',
+                        mode: 'no-cors',
+                        body: JSON.stringify(payload)
+                    });
+                    setSubmitStatus('success');
+                    // 清空表單
+                    setCustName('');
+                    setCustPhone('');
+                    setQuantity(1);
+                } catch (error) {
+                    console.error("預約失敗", error);
+                    setSubmitStatus('error');
+                } finally {
+                    setIsSubmitting(false);
+                }
+            };
+
+            return (
+                <div className="min-h-screen flex flex-col items-center">
+                    
+                    {/* Hero 形象大圖橫幅 - 使用重命名後的 banner.jpg */}
+                    <div className="w-full relative h-[45vh] sm:h-[60vh] overflow-hidden flex items-end justify-center">
+                        <img 
+                            src="banner.jpg" 
+                            alt="畢業小熊編織花束合照" 
+                            className="absolute inset-0 w-full h-full object-cover brightness-[0.5]"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-[#0d0d0d] via-transparent to-black/30"></div>
+                        <div className="relative text-center pb-8 px-4 z-10">
+                            <p className="font-cinzel text-[#c5a880] tracking-[0.25em] text-xs sm:text-sm uppercase font-bold mb-2">Sung Li Select</p>
+                            <h1 className="text-3xl sm:text-5xl font-extrabold tracking-widest text-white mb-2 drop-shadow-lg font-serif-tc">畢業小熊編織花束</h1>
+                            <p className="text-slate-300 text-xs sm:text-sm max-w-md mx-auto font-light">精選美好 · 傳遞心意。為即將展翅高飛的他們，獻上一份永不凋謝的溫暖祝福。</p>
+                        </div>
+                    </div>
+
+                    {/* 主體內容容器 */}
+                    <main className="max-w-4xl w-full px-4 py-12 space-y-16">
+                        
+                        {/* 介紹區塊 */}
+                        <section className="text-center max-w-xl mx-auto space-y-4">
+                            <h2 className="text-2xl font-bold text-[#c5a880] tracking-wider">限時限量 尊榮預定</h2>
+                            <div className="h-[1px] w-12 bg-[#c5a880] mx-auto"></div>
+                            <p className="text-sm text-slate-400 leading-relaxed">
+                                由我們精心手工勾針編織的向日葵與超萌畢業小熊，象徵陽光璀璨的前程。每束均附贈專屬禮袋與精緻香氛。
+                            </p>
+                        </section>
+
+                        {/* 款式展示與挑選區 */}
+                        <section className="space-y-6">
+                            <h3 className="text-lg font-bold tracking-widest text-[#c5a880] text-center uppercase">1. 選擇花束款式</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                {VARIANTS.map(v => (
+                                    <div 
+                                        key={v.id} 
+                                        onClick={() => setSelectedStyle(v.id)}
+                                        className={`group cursor-pointer rounded-2xl overflow-hidden bg-zinc-950 border transition-all duration-300 transform hover:-translate-y-1 
+                                        ${selectedStyle === v.id ? 'border-[#c5a880] shadow-[0_0_15px_rgba(197,168,128,0.2)]' : 'border-zinc-800'}`}
+                                    >
+                                        <div className="relative h-72 overflow-hidden">
+                                            <img 
+                                                src={v.img} 
+                                                alt={v.name} 
+                                                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                                            />
+                                            <span className="absolute top-3 left-3 bg-[#c5a880] text-[#0d0d0d] font-bold text-[10px] px-2.5 py-1 rounded-full uppercase tracking-wider shadow-md">
+                                                {v.badge}
+                                            </span>
+                                        </div>
+                                        <div className="p-5 space-y-2">
+                                            <h4 className="font-bold text-base text-white group-hover:text-[#c5a880] transition-colors">{v.name}</h4>
+                                            <p className="text-xs text-zinc-400 leading-relaxed h-10 overflow-hidden">{v.desc}</p>
+                                            <div className="flex justify-between items-center pt-2 border-t border-zinc-900">
+                                                <span className="text-lg font-bold text-[#c5a880] font-cinzel">${v.price}</span>
+                                                <span className={`text-[11px] font-bold tracking-wider ${selectedStyle === v.id ? 'text-[#c5a880]' : 'text-zinc-600'}`}>
+                                                    {selectedStyle === v.id ? '● 已選定' : '選擇此款'}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </section>
+
+                        {/* 預訂資料填寫 */}
+                        <section className="bg-zinc-950 border border-zinc-900 rounded-3xl p-6 sm:p-10 shadow-2xl relative overflow-hidden">
+                            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[#c5a880] to-transparent"></div>
+                            
+                            <h3 className="text-xl font-bold tracking-widest text-[#c5a880] text-center mb-8">2. 填寫預約交貨資訊</h3>
+
+                            <form onSubmit={handleOrderSubmit} className="space-y-6 max-w-lg mx-auto">
+                                
+                                {/* 目前所選款式摘要 */}
+                                <div className="p-4 rounded-xl bg-zinc-900/50 border border-zinc-800 flex items-center justify-between gap-4">
+                                    <div className="flex items-center gap-3">
+                                        <img src={currentVariant.img} className="w-12 h-12 rounded-lg object-cover" />
+                                        <div>
+                                            <p className="text-xs text-[#c5a880] font-bold">已選款式</p>
+                                            <h5 className="text-sm font-bold text-white">{currentVariant.name}</h5>
+                                        </div>
+                                    </div>
+                                    <div className="text-right">
+                                        <span className="text-xs text-zinc-500">總金額</span>
+                                        <p className="text-lg font-bold text-[#c5a880] font-cinzel">${BOUQUET_PRICE * quantity}</p>
+                                    </div>
+                                </div>
+
+                                {/* 數量選擇 */}
+                                <div>
+                                    <label className="text-xs font-bold text-zinc-400 block mb-2 tracking-widest uppercase">購買數量</label>
+                                    <div className="flex items-center gap-4">
+                                        <button 
+                                            type="button" 
+                                            onClick={() => setQuantity(q => Math.max(1, q - 1))}
+                                            className="w-10 h-10 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white font-bold border border-zinc-800 flex items-center justify-center transition-colors"
+                                        >
+                                            -
+                                        </button>
+                                        <span className="text-lg font-bold font-cinzel w-8 text-center">{quantity}</span>
+                                        <button 
+                                            type="button" 
+                                            onClick={() => setQuantity(q => q + 1)}
+                                            className="w-10 h-10 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white font-bold border border-zinc-800 flex items-center justify-center transition-colors"
+                                        >
+                                            +
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* 交貨地點 */}
+                                <div>
+                                    <label className="text-xs font-bold text-zinc-400 block mb-2 tracking-widest uppercase">交貨站點</label>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        {LOCATIONS.map(loc => (
+                                            <button 
+                                                key={loc}
+                                                type="button"
+                                                onClick={() => setLocation(loc)}
+                                                className={`p-3.5 rounded-xl border text-sm font-medium transition-all text-left flex items-center justify-between
+                                                ${location === loc ? 'border-[#c5a880] bg-[#c5a880]/5 text-[#c5a880]' : 'border-zinc-800 bg-zinc-900 text-zinc-400 hover:border-zinc-700'}`}
+                                            >
+                                                <span>{loc}</span>
+                                                {location === loc && <span className="w-2 h-2 rounded-full bg-[#c5a880]"></span>}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* 預約日期 */}
+                                <div>
+                                    <label className="text-xs font-bold text-zinc-400 block mb-2 tracking-widest uppercase">交貨日期</label>
+                                    <div className="relative">
+                                        <input 
+                                            type="date" 
+                                            min="2026-06-01" 
+                                            className="w-full p-3.5 pl-12 bg-zinc-900 border border-zinc-800 text-white rounded-xl outline-none focus:border-[#c5a880] font-cinzel text-sm transition-all [color-scheme:dark]"
+                                            value={pickupDate}
+                                            onChange={(e) => setPickupDate(e.target.value)}
+                                            required
+                                        />
+                                        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-[#c5a880] pointer-events-none">
+                                            <i data-lucide="calendar" className="w-4 h-4"></i>
+                                        </div>
+                                    </div>
+                                    <p className="text-[10px] text-[#c5a880] mt-1.5 flex items-center gap-1">
+                                        ⏰ 固定交貨時間皆為晚間 <strong className="underline">18:30 ~ 19:00</strong>，敬請準時抵達約定出口
+                                    </p>
+                                </div>
+
+                                {/* 客戶聯絡資訊 */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="text-xs font-bold text-zinc-400 block mb-2 tracking-widest uppercase">聯絡人姓名</label>
+                                        <input 
+                                            type="text" 
+                                            placeholder="請輸入大名" 
+                                            className="w-full p-3.5 bg-zinc-900 border border-zinc-800 text-white placeholder:text-zinc-600 rounded-xl outline-none focus:border-[#c5a880] text-sm transition-colors"
+                                            value={custName}
+                                            onChange={(e) => setCustName(e.target.value)}
+                                            required
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-xs font-bold text-zinc-400 block mb-2 tracking-widest uppercase">聯絡電話</label>
+                                        <input 
+                                            type="tel" 
+                                            placeholder="例: 0912345678" 
+                                            className="w-full p-3.5 bg-zinc-900 border border-zinc-800 text-white placeholder:text-zinc-600 rounded-xl outline-none focus:border-[#c5a880] text-sm transition-colors"
+                                            value={custPhone}
+                                            onChange={(e) => setCustPhone(e.target.value)}
+                                            required
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* 提交按鈕 */}
+                                <button 
+                                    type="submit" 
+                                    disabled={isSubmitting}
+                                    className={`w-full py-4 rounded-xl font-bold text-sm tracking-widest transition-all duration-300 flex items-center justify-center gap-2
+                                    ${isSubmitting ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed' : 'bg-[#c5a880] text-[#0d0d0d] hover:bg-[#b3966d] active:scale-95 shadow-lg shadow-[#c5a880]/10'}`}
+                                >
+                                    {isSubmitting ? (
+                                        <>
+                                            <div className="w-4 h-4 border-2 border-zinc-500 border-t-zinc-300 rounded-full animate-spin"></div>
+                                            提交預約中...
+                                        </>
+                                    ) : (
+                                        <>
+                                            確認預購提交
+                                        </>
+                                    )}
+                                </button>
+                            </form>
+                        </section>
+                    </main>
+
+                    {/* 成功 / 失敗彈窗 */}
+                    {submitStatus && (
+                        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-300">
+                            <div className="bg-zinc-950 border border-zinc-800 p-8 rounded-3xl max-w-xs w-full text-center space-y-4 shadow-2xl relative">
+                                <div className="absolute top-0 left-0 right-0 h-1 bg-[#c5a880]"></div>
+                                {submitStatus === 'success' ? (
+                                    <>
+                                        <div className="w-12 h-12 rounded-full bg-green-500/10 text-green-400 flex items-center justify-center mx-auto mb-2">
+                                            <i data-lucide="check-circle-2" className="w-8 h-8"></i>
+                                        </div>
+                                        <h4 className="text-lg font-bold text-white tracking-wider">預約成功</h4>
+                                        <p className="text-xs text-zinc-400 leading-relaxed">
+                                            我們已收到您的精緻花束預訂！交貨當天我們會以簡訊或電話與您再次聯絡，敬請保持手機通暢。
+                                        </p>
+                                    </>
+                                ) : (
+                                    <>
+                                        <div className="w-12 h-12 rounded-full bg-red-500/10 text-red-400 flex items-center justify-center mx-auto mb-2">
+                                            <i data-lucide="alert-circle" className="w-8 h-8"></i>
+                                        </div>
+                                        <h4 className="text-lg font-bold text-white tracking-wider">提交失敗</h4>
+                                        <p className="text-xs text-zinc-400 leading-relaxed">
+                                            可能因為伺服器忙碌中，請檢查您的網路狀態並稍後再試一次！
+                                        </p>
+                                    </>
+                                )}
+                                <button 
+                                    onClick={() => setSubmitStatus(null)}
+                                    className="w-full py-2.5 rounded-xl bg-zinc-900 border border-zinc-800 text-xs font-bold text-zinc-300 hover:bg-zinc-800 transition-colors"
+                                >
+                                    確認並關閉
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* 頁尾品牌宣告 */}
+                    <footer className="w-full border-t border-zinc-900 py-12 text-center text-zinc-600 text-xs space-y-2 mt-auto">
+                        <p className="font-cinzel text-zinc-500 tracking-[0.2em]">SUNG LI SELECT</p>
+                        <p>© 2026 宋禮美學工作室. All Rights Reserved.</p>
+                        <p className="text-[10px] text-zinc-700">江子翠站 / 蘆洲站 每日定點交貨服務</p>
+                    </footer>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />); // 這裡已修正為正確的組件渲染元素
+    </script>
+</body>
+</html>
