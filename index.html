@@ -14,14 +14,14 @@
         
         .font-serif-tc { font-family: 'Noto Serif TC', serif; }
         .font-cinzel { font-family: 'Cinzel', serif; }
-        body { background-color: #0d0d0d; color: #f5f5f5; -webkit-tap-highlight-color: transparent; }
+        body { background-color: #0d0d0d; color: #f5f5f5; -webkit-tap-highlight-color: transparent; overflow-x: hidden; }
         
         /* 訂製金色滾邊與滾動條 */
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: #0d0d0d; }
         ::-webkit-scrollbar-thumb { background: #c5a880; border-radius: 3px; }
 
-        /* 核心優化：強制將瀏覽器原生行事曆按鈕變更為精緻香檳金色 */
+        /* 強制將瀏覽器原生行事曆按鈕變更為精緻香檳金色 */
         input[type="date"]::-webkit-calendar-picker-indicator {
             filter: invert(80%) sepia(13%) saturate(1005%) hue-rotate(344deg) brightness(89%) contrast(85%);
             cursor: pointer;
@@ -32,21 +32,33 @@
         input[type="date"]::-webkit-calendar-picker-indicator:hover {
             background-color: rgba(197, 168, 128, 0.15);
         }
+        
+        /* 避免 iOS/Android 原生日曆字體縮小 */
+        input[type="date"] {
+            font-size: 16px !important;
+        }
+
+        /* 3D 旋轉輪播過渡動畫 */
+        .carousel-container {
+            perspective: 1000px;
+        }
+        .carousel-card {
+            transition: all 0.5s cubic-bezier(0.25, 0.8, 0.25, 1);
+        }
     </style>
 </head>
 <body class="font-serif-tc selection:bg-[#c5a880] selection:text-[#0d0d0d]">
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect, useMemo } = React;
+        const { useState, useEffect, useMemo, useRef } = React;
 
         // --- 設定區 ---
-        // 請確保此處為您 Google Apps Script 的部署 Web App URL
         const GAS_URL = "https://script.google.com/macros/s/AKfycby7qSpHzKkUeDQixbI2eLS9uk9F4J8ZEWx-5O1yEEdOC01cxfh22u3YGiwn4OIfTUvS/exec"; 
 
         const BOUQUET_PRICE = 499;
 
-        // 圖片檔名已重構為乾淨的英文，避免 Emoji 與中文編碼導致破圖
+        // 圖片與款式資料
         const VARIANTS = [
             { 
                 id: '藍', 
@@ -74,13 +86,15 @@
             }
         ];
 
+        // 交貨地點新增：東園派出所(舊址)
         const LOCATIONS = [
             "捷運江子翠站五號出口",
-            "捷運蘆洲站三號出口"
+            "捷運蘆洲站三號出口",
+            "東園派出所(舊址)"
         ];
 
         const App = () => {
-            const [selectedStyle, setSelectedStyle] = useState('藍');
+            const [activeIndex, setActiveIndex] = useState(0); // 當前選中款式的索引 (0:藍, 1:粉, 2:黃)
             const [quantity, setQuantity] = useState(1);
             const [location, setLocation] = useState(LOCATIONS[0]);
             const [pickupDate, setPickupDate] = useState('2026-06-01');
@@ -88,21 +102,60 @@
             const [custPhone, setCustPhone] = useState('');
             const [isSubmitting, setIsSubmitting] = useState(false);
             const [submitStatus, setSubmitStatus] = useState(null); // 'success' | 'error'
+            const [validationError, setValidationError] = useState(''); // 代替原生 alert
+
+            // 用於處理手勢滑動 (Swipe) 的狀態
+            const touchStartX = useRef(0);
+            const touchEndX = useRef(0);
 
             useEffect(() => {
                 if (typeof lucide !== 'undefined') lucide.createIcons();
-            }, [submitStatus, selectedStyle]);
+            }, [submitStatus, activeIndex]);
 
             // 計算當前選擇款式的詳細資訊
             const currentVariant = useMemo(() => {
-                return VARIANTS.find(v => v.id === selectedStyle);
-            }, [selectedStyle]);
+                return VARIANTS[activeIndex];
+            }, [activeIndex]);
+
+            // 輪播導覽：上一張/下一張
+            const handlePrev = () => {
+                setActiveIndex((prev) => (prev - 1 + VARIANTS.length) % VARIANTS.length);
+            };
+
+            const handleNext = () => {
+                setActiveIndex((prev) => (prev + 1) % VARIANTS.length);
+            };
+
+            // 滑動事件處理
+            const handleTouchStart = (e) => {
+                touchStartX.current = e.targetTouches[0].clientX;
+            };
+
+            const handleTouchMove = (e) => {
+                touchEndX.current = e.targetTouches[0].clientX;
+            };
+
+            const handleTouchEnd = () => {
+                const threshold = 50; // 滑動判定閾值
+                const diff = touchStartX.current - touchEndX.current;
+                if (Math.abs(diff) > threshold) {
+                    if (diff > 0) {
+                        handleNext(); // 向左滑 -> 看下一張
+                    } else {
+                        handlePrev(); // 向右滑 -> 看上一張
+                    }
+                }
+            };
 
             // 處理預訂提交
             const handleOrderSubmit = async (e) => {
                 e.preventDefault();
+                setValidationError('');
+
                 if (!custName.trim() || !custPhone.trim()) {
-                    alert("請填寫您的姓名與電話聯絡資訊唷！");
+                    setValidationError("請填寫您的「姓名」與「電話聯絡資訊」唷！");
+                    // 滾動到提示訊息位置
+                    document.getElementById('validation-msg-anchor')?.scrollIntoView({ behavior: 'smooth' });
                     return;
                 }
                 
@@ -110,16 +163,18 @@
                 setSubmitStatus(null);
 
                 // 將地點簡化以便寫入試算表
-                const shortLoc = location.includes("江子翠") ? "江子翠" : "蘆洲";
+                let shortLoc = "其他";
+                if (location.includes("江子翠")) shortLoc = "江子翠";
+                else if (location.includes("蘆洲")) shortLoc = "蘆洲";
+                else if (location.includes("東園")) shortLoc = "東園";
 
-                // 將 預訂地點 與 日期 包裝進 "channel" (通路) 欄位
                 const payload = {
                     action: "addSale",
                     id: 'S' + Date.now(),
                     timestamp: Date.now(),
                     channel: `預約-${shortLoc} (${pickupDate})`,
                     qty: quantity,
-                    style: selectedStyle,
+                    style: VARIANTS[activeIndex].id,
                     custName: custName,
                     custPhone: custPhone,
                     gross: BOUQUET_PRICE * quantity,
@@ -134,7 +189,6 @@
                         body: JSON.stringify(payload)
                     });
                     setSubmitStatus('success');
-                    // 清空表單
                     setCustName('');
                     setCustPhone('');
                     setQuantity(1);
@@ -149,7 +203,7 @@
             return (
                 <div className="min-h-screen flex flex-col items-center">
                     
-                    {/* Hero 形象大圖橫幅 - 使用重命名後的 banner.jpg */}
+                    {/* Hero 形象大圖橫幅 */}
                     <div className="w-full relative h-[45vh] sm:h-[60vh] overflow-hidden flex items-end justify-center">
                         <img 
                             src="banner.jpg" 
@@ -157,7 +211,7 @@
                             className="absolute inset-0 w-full h-full object-cover brightness-[0.5]"
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-[#0d0d0d] via-transparent to-black/30"></div>
-                        <div className="relative text-center pb-8 px-4 z-10">
+                        <div className="relative text-center pb-8 px-4 z-10 animate-in fade-in slide-in-from-bottom-6 duration-1000">
                             <p className="font-cinzel text-[#c5a880] tracking-[0.25em] text-xs sm:text-sm uppercase font-bold mb-2">Sung Li Select</p>
                             <h1 className="text-3xl sm:text-5xl font-extrabold tracking-widest text-white mb-2 drop-shadow-lg font-serif-tc">畢業小熊編織花束</h1>
                             <p className="text-slate-300 text-xs sm:text-sm max-w-md mx-auto font-light">精選美好 · 傳遞心意。為即將展翅高飛的他們，獻上一份永不凋謝的溫暖祝福。</p>
@@ -176,44 +230,110 @@
                             </p>
                         </section>
 
-                        {/* 款式展示與挑選區 */}
-                        <section className="space-y-6">
-                            <h3 className="text-lg font-bold tracking-widest text-[#c5a880] text-center uppercase">1. 選擇花束款式</h3>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                {VARIANTS.map(v => (
-                                    <div 
-                                        key={v.id} 
-                                        onClick={() => setSelectedStyle(v.id)}
-                                        className={`group cursor-pointer rounded-2xl overflow-hidden bg-zinc-950 border transition-all duration-300 transform hover:-translate-y-1 
-                                        ${selectedStyle === v.id ? 'border-[#c5a880] shadow-[0_0_15px_rgba(197,168,128,0.2)]' : 'border-zinc-800'}`}
-                                    >
-                                        <div className="relative h-72 overflow-hidden">
-                                            <img 
-                                                src={v.img} 
-                                                alt={v.name} 
-                                                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                                            />
-                                            <span className="absolute top-3 left-3 bg-[#c5a880] text-[#0d0d0d] font-bold text-[10px] px-2.5 py-1 rounded-full uppercase tracking-wider shadow-md">
-                                                {v.badge}
-                                            </span>
-                                        </div>
-                                        <div className="p-5 space-y-2">
-                                            <h4 className="font-bold text-base text-white group-hover:text-[#c5a880] transition-colors">{v.name}</h4>
-                                            <p className="text-xs text-zinc-400 leading-relaxed h-10 overflow-hidden">{v.desc}</p>
-                                            <div className="flex justify-between items-center pt-2 border-t border-zinc-900">
-                                                <span className="text-lg font-bold text-[#c5a880] font-cinzel">${v.price}</span>
-                                                <span className={`text-[11px] font-bold tracking-wider ${selectedStyle === v.id ? 'text-[#c5a880]' : 'text-zinc-600'}`}>
-                                                    {selectedStyle === v.id ? '● 已選定' : '選擇此款'}
-                                                </span>
+                        {/* 3D 輪播立體展示挑選區 */}
+                        <section className="space-y-8 select-none">
+                            <h3 className="text-lg font-bold tracking-widest text-[#c5a880] text-center uppercase flex items-center justify-center gap-2">
+                                <i data-lucide="sparkles" className="w-4 h-4"></i>
+                                <span>左右滑動挑選花束款式</span>
+                            </h3>
+                            
+                            {/* 輪播主體 */}
+                            <div className="relative w-full h-[450px] flex items-center justify-center overflow-visible carousel-container py-4">
+                                
+                                {/* 左控制箭頭 */}
+                                <button 
+                                    onClick={handlePrev}
+                                    className="absolute left-2 sm:left-10 z-40 bg-black/60 hover:bg-black/90 text-[#c5a880] hover:text-[#e5cfa3] w-12 h-12 rounded-full border border-zinc-800 flex items-center justify-center transition-all shadow-lg active:scale-90"
+                                >
+                                    <i data-lucide="chevron-left" className="w-6 h-6 stroke-[2.5]"></i>
+                                </button>
+
+                                {/* 卡片容器 */}
+                                <div 
+                                    className="relative w-full max-w-[280px] h-[390px] flex items-center justify-center"
+                                    onTouchStart={handleTouchStart}
+                                    onTouchMove={handleTouchMove}
+                                    onTouchEnd={handleTouchEnd}
+                                >
+                                    {VARIANTS.map((v, index) => {
+                                        // 核心 3D 位置演算法
+                                        let position = "center"; // center, left, right, hidden
+                                        const diff = index - activeIndex;
+                                        
+                                        if (diff === 0) position = "center";
+                                        else if (diff === 1 || (diff === -2 && VARIANTS.length === 3)) position = "right";
+                                        else if (diff === -1 || (diff === 2 && VARIANTS.length === 3)) position = "left";
+                                        
+                                        // 依據位置派發樣式
+                                        let styleClasses = "";
+                                        if (position === "center") {
+                                            styleClasses = "translate-x-0 scale-100 z-30 opacity-100 border-[#c5a880] ring-4 ring-[#c5a880]/30 shadow-[0_0_30px_rgba(197,168,128,0.4)]";
+                                        } else if (position === "left") {
+                                            styleClasses = "-translate-x-[65%] sm:-translate-x-[90%] scale-75 z-10 opacity-30 pointer-events-none blur-[1px] border-zinc-800";
+                                        } else if (position === "right") {
+                                            styleClasses = "translate-x-[65%] sm:translate-x-[90%] scale-75 z-10 opacity-30 pointer-events-none blur-[1px] border-zinc-800";
+                                        }
+
+                                        return (
+                                            <div 
+                                                key={v.id}
+                                                onClick={() => {
+                                                    if (position !== "center") {
+                                                        setActiveIndex(index);
+                                                    }
+                                                }}
+                                                className={`absolute w-full h-full rounded-2xl overflow-hidden bg-zinc-950 border carousel-card cursor-pointer flex flex-col justify-between ${styleClasses}`}
+                                            >
+                                                {/* 款式照片區 */}
+                                                <div className="relative h-[240px] overflow-hidden">
+                                                    <img 
+                                                        src={v.img} 
+                                                        alt={v.name} 
+                                                        className={`w-full h-full object-cover transition-transform duration-700 ${position === 'center' ? 'scale-100 brightness-110' : 'scale-95 brightness-50'}`}
+                                                    />
+                                                    <span className="absolute top-3 left-3 bg-zinc-950/80 backdrop-blur-sm text-zinc-300 font-bold text-[10px] px-2.5 py-1 rounded-full uppercase tracking-wider">
+                                                        {v.badge}
+                                                    </span>
+                                                </div>
+
+                                                {/* 款式文字敘述區 */}
+                                                <div className="p-4 bg-zinc-950 flex-1 flex flex-col justify-between border-t border-zinc-900/50">
+                                                    <div className="text-center">
+                                                        <h4 className={`font-bold text-sm tracking-wide transition-colors ${position === 'center' ? 'text-[#c5a880]' : 'text-zinc-500'}`}>{v.name}</h4>
+                                                        <p className={`text-[10px] text-zinc-400 mt-1 leading-relaxed line-clamp-2 transition-all ${position === 'center' ? 'opacity-100' : 'opacity-0'}`}>{v.desc}</p>
+                                                    </div>
+                                                    <div className="flex justify-center items-center pt-2">
+                                                        <span className="text-base font-bold text-[#c5a880] font-cinzel">${v.price}</span>
+                                                    </div>
+                                                </div>
                                             </div>
-                                        </div>
-                                    </div>
+                                        );
+                                    })}
+                                </div>
+
+                                {/* 右控制箭頭 */}
+                                <button 
+                                    onClick={handleNext}
+                                    className="absolute right-2 sm:right-10 z-40 bg-black/60 hover:bg-black/90 text-[#c5a880] hover:text-[#e5cfa3] w-12 h-12 rounded-full border border-zinc-800 flex items-center justify-center transition-all shadow-lg active:scale-90"
+                                >
+                                    <i data-lucide="chevron-right" className="w-6 h-6 stroke-[2.5]"></i>
+                                </button>
+                            </div>
+
+                            {/* 輪播底部進度點指示器 */}
+                            <div className="flex justify-center items-center gap-3 pt-2">
+                                {VARIANTS.map((_, idx) => (
+                                    <button
+                                        key={idx}
+                                        onClick={() => setActiveIndex(idx)}
+                                        className={`h-1.5 rounded-full transition-all duration-300 ${activeIndex === idx ? 'w-8 bg-[#c5a880]' : 'w-2 bg-zinc-800 hover:bg-zinc-700'}`}
+                                    />
                                 ))}
                             </div>
                         </section>
 
                         {/* 預訂資料填寫 */}
-                        <section className="bg-zinc-950 border border-zinc-900 rounded-3xl p-6 sm:p-10 shadow-2xl relative overflow-hidden">
+                        <section className="bg-zinc-950 border border-zinc-900 rounded-3xl p-5 sm:p-10 shadow-2xl relative overflow-hidden">
                             <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[#c5a880] to-transparent"></div>
                             
                             <h3 className="text-xl font-bold tracking-widest text-[#c5a880] text-center mb-8">2. 填寫預約交貨資訊</h3>
@@ -223,14 +343,14 @@
                                 {/* 目前所選款式摘要 */}
                                 <div className="p-4 rounded-xl bg-zinc-900/50 border border-zinc-800 flex items-center justify-between gap-4">
                                     <div className="flex items-center gap-3">
-                                        <img src={currentVariant.img} className="w-12 h-12 rounded-lg object-cover" />
+                                        <img src={currentVariant.img} className="w-12 h-12 rounded-lg object-cover ring-2 ring-[#c5a880]/50" />
                                         <div>
-                                            <p className="text-xs text-[#c5a880] font-bold">已選款式</p>
+                                            <p className="text-xs text-[#c5a880] font-bold">當前選擇款式</p>
                                             <h5 className="text-sm font-bold text-white">{currentVariant.name}</h5>
                                         </div>
                                     </div>
                                     <div className="text-right">
-                                        <span className="text-xs text-zinc-500">總金額</span>
+                                        <span className="text-xs text-zinc-500">總預購金額</span>
                                         <p className="text-lg font-bold text-[#c5a880] font-cinzel">${BOUQUET_PRICE * quantity}</p>
                                     </div>
                                 </div>
@@ -260,17 +380,17 @@
                                 {/* 交貨地點 */}
                                 <div>
                                     <label className="text-xs font-bold text-zinc-400 block mb-2 tracking-widest uppercase">交貨站點</label>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div className="grid grid-cols-1 gap-2.5">
                                         {LOCATIONS.map(loc => (
                                             <button 
                                                 key={loc}
                                                 type="button"
                                                 onClick={() => setLocation(loc)}
-                                                className={`p-3.5 rounded-xl border text-sm font-medium transition-all text-left flex items-center justify-between
+                                                className={`p-4 rounded-xl border text-sm font-medium transition-all text-left flex items-center justify-between
                                                 ${location === loc ? 'border-[#c5a880] bg-[#c5a880]/5 text-[#c5a880]' : 'border-zinc-800 bg-zinc-900 text-zinc-400 hover:border-zinc-700'}`}
                                             >
                                                 <span>{loc}</span>
-                                                {location === loc && <span className="w-2 h-2 rounded-full bg-[#c5a880]"></span>}
+                                                {location === loc && <span className="w-2.5 h-2.5 rounded-full bg-[#c5a880] shadow-[0_0_8px_#c5a880]"></span>}
                                             </button>
                                         ))}
                                     </div>
@@ -279,20 +399,21 @@
                                 {/* 預約日期 */}
                                 <div>
                                     <label className="text-xs font-bold text-zinc-400 block mb-2 tracking-widest uppercase">交貨日期</label>
-                                    <div className="relative">
+                                    <div className="relative w-full">
+                                        {/* 強置寬度 100% 且以 box-border 防止溢出螢幕邊界 */}
                                         <input 
                                             type="date" 
                                             min="2026-06-01" 
-                                            className="w-full p-3.5 pl-12 bg-zinc-900 border border-zinc-800 text-white rounded-xl outline-none focus:border-[#c5a880] font-cinzel text-sm transition-all [color-scheme:dark]"
+                                            className="w-full box-border p-4 pl-12 pr-4 bg-zinc-900 border border-zinc-800 text-white rounded-xl outline-none focus:border-[#c5a880] font-cinzel text-base transition-all [color-scheme:dark]"
                                             value={pickupDate}
                                             onChange={(e) => setPickupDate(e.target.value)}
                                             required
                                         />
                                         <div className="absolute left-4 top-1/2 -translate-y-1/2 text-[#c5a880] pointer-events-none">
-                                            <i data-lucide="calendar" className="w-4 h-4"></i>
+                                            <i data-lucide="calendar" className="w-5 h-5"></i>
                                         </div>
                                     </div>
-                                    <p className="text-[10px] text-[#c5a880] mt-1.5 flex items-center gap-1">
+                                    <p className="text-[10px] sm:text-xs text-[#c5a880] mt-2 flex items-center gap-1">
                                         ⏰ 固定交貨時間皆為晚間 <strong className="underline">18:30 ~ 19:00</strong>，敬請準時抵達約定出口
                                     </p>
                                 </div>
@@ -304,7 +425,7 @@
                                         <input 
                                             type="text" 
                                             placeholder="請輸入大名" 
-                                            className="w-full p-3.5 bg-zinc-900 border border-zinc-800 text-white placeholder:text-zinc-600 rounded-xl outline-none focus:border-[#c5a880] text-sm transition-colors"
+                                            className="w-full p-4 bg-zinc-900 border border-zinc-800 text-white placeholder:text-zinc-600 rounded-xl outline-none focus:border-[#c5a880] text-sm transition-colors"
                                             value={custName}
                                             onChange={(e) => setCustName(e.target.value)}
                                             required
@@ -315,13 +436,21 @@
                                         <input 
                                             type="tel" 
                                             placeholder="例: 0912345678" 
-                                            className="w-full p-3.5 bg-zinc-900 border border-zinc-800 text-white placeholder:text-zinc-600 rounded-xl outline-none focus:border-[#c5a880] text-sm transition-colors"
+                                            className="w-full p-4 bg-zinc-900 border border-zinc-800 text-white placeholder:text-zinc-600 rounded-xl outline-none focus:border-[#c5a880] text-sm transition-colors"
                                             value={custPhone}
                                             onChange={(e) => setCustPhone(e.target.value)}
                                             required
                                         />
                                     </div>
                                 </div>
+
+                                {/* 優雅替代原生彈窗的警告字樣 */}
+                                {validationError && (
+                                    <div id="validation-msg-anchor" className="p-3.5 rounded-xl bg-amber-500/10 border border-[#c5a880]/30 text-amber-200 text-xs text-center flex items-center justify-center gap-2 animate-pulse">
+                                        <i data-lucide="alert-triangle" className="w-4 h-4 text-[#c5a880]"></i>
+                                        <span>{validationError}</span>
+                                    </div>
+                                )}
 
                                 {/* 提交按鈕 */}
                                 <button 
@@ -385,14 +514,14 @@
                     <footer className="w-full border-t border-zinc-900 py-12 text-center text-zinc-600 text-xs space-y-2 mt-auto">
                         <p className="font-cinzel text-zinc-500 tracking-[0.2em]">SUNG LI SELECT</p>
                         <p>© 2026 宋禮美學工作室. All Rights Reserved.</p>
-                        <p className="text-[10px] text-zinc-700">江子翠站 / 蘆洲站 每日定點交貨服務</p>
+                        <p className="text-[10px] text-zinc-700">江子翠站 / 蘆洲站 / 東園派出所 每日定點交貨服務</p>
                     </footer>
                 </div>
             );
         };
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />); // 這裡已修正為正確的組件渲染元素
+        root.render(<App />); 
     </script>
 </body>
 </html>
