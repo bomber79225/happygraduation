@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>宋禮 SUNG LI SELECT | 畢業小熊編織花束預購</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -12,6 +12,11 @@
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Noto+Serif+TC:wght@400;600;900&display=swap');
         
+        /* 全域重置，強制所有元素以 box-border 渲染，徹底防止手機版任何元件溢出 */
+        *, *:before, *:after { 
+            box-sizing: border-box !important; 
+        }
+
         .font-serif-tc { font-family: 'Noto Serif TC', serif; }
         .font-cinzel { font-family: 'Cinzel', serif; }
         body { background-color: #0d0d0d; color: #f5f5f5; -webkit-tap-highlight-color: transparent; overflow-x: hidden; }
@@ -33,9 +38,12 @@
             background-color: rgba(197, 168, 128, 0.15);
         }
         
-        /* 避免 iOS/Android 原生日曆字體縮小 */
+        /* 避免 iOS/Android 原生日曆字體縮小與跑版 */
         input[type="date"] {
-            font-size: 16px !important;
+            font-size: 1.125rem !important; /* 18px */
+            font-weight: 700 !important;
+            width: 100% !important;
+            max-width: 100% !important;
         }
 
         /* 3D 旋轉輪播過渡動畫 */
@@ -86,7 +94,7 @@
             }
         ];
 
-        // 交貨地點新增：東園派出所(舊址)
+        // 交貨地點
         const LOCATIONS = [
             "捷運江子翠站五號出口",
             "捷運蘆洲站三號出口",
@@ -208,7 +216,7 @@
             };
 
             return (
-                <div className="min-h-screen flex flex-col items-center">
+                <div className="min-h-screen flex flex-col items-center w-full max-w-full overflow-hidden">
                     
                     {/* Hero 形象大圖橫幅 */}
                     <div className="w-full relative h-[45vh] sm:h-[60vh] overflow-hidden flex items-end justify-center">
@@ -232,7 +240,7 @@
                     </div>
 
                     {/* 主體內容容器 */}
-                    <main className="max-w-4xl w-full px-4 py-12 space-y-16">
+                    <main className="max-w-4xl w-full px-4 py-12 space-y-16 box-border overflow-hidden">
                         
                         {/* 介紹區塊 */}
                         <section className="text-center max-w-xl mx-auto space-y-4">
@@ -244,8 +252,7 @@
                         </section>
 
                         {/* 3D 輪播立體展示挑選區 */}
-                        <section className="space-y-8 select-none">
-                            {/* 移除原本的滑動提示說明，保留精巧無雜訊的奢華大標題 */}
+                        <section className="space-y-8 select-none w-full">
                             <h3 className="text-lg font-bold tracking-widest text-[#c5a880] text-center uppercase flex items-center justify-center gap-2">
                                 <i data-lucide="sparkles" className="w-4 h-4"></i>
                                 <span>選擇花束款式</span>
@@ -354,36 +361,36 @@
                         </section>
 
                         {/* 預訂資料填寫 */}
-                        <section className="bg-zinc-950 border border-zinc-900 rounded-3xl p-5 sm:p-10 shadow-2xl relative overflow-hidden">
+                        <section className="bg-zinc-950 border border-zinc-900 rounded-3xl p-5 sm:p-10 shadow-2xl relative overflow-hidden box-border max-w-full">
                             <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[#c5a880] to-transparent"></div>
                             
                             <h3 className="text-xl font-bold tracking-widest text-[#c5a880] text-center mb-8">2. 填寫預約交貨資訊</h3>
 
-                            <form onSubmit={handleOrderSubmit} className="space-y-6 max-w-lg mx-auto">
+                            <form onSubmit={handleOrderSubmit} className="space-y-6 max-w-full sm:max-w-lg mx-auto box-border overflow-hidden">
                                 
                                 {/* 目前所選款式摘要 */}
-                                <div className="p-4 rounded-xl bg-zinc-900/50 border border-zinc-800 flex items-center justify-between gap-4">
+                                <div className="p-4 rounded-xl bg-zinc-900/50 border border-zinc-800 flex items-center justify-between gap-4 box-border max-w-full overflow-hidden">
                                     <div className="flex items-center gap-3">
                                         {imageErrors[currentVariant.id] ? (
-                                            <div className="w-12 h-12 rounded-lg bg-zinc-900 border border-[#c5a880]/30 flex items-center justify-center text-[#c5a880]/60">
+                                            <div className="w-12 h-12 rounded-lg bg-zinc-900 border border-[#c5a880]/30 flex items-center justify-center text-[#c5a880]/60 flex-shrink-0">
                                                 <i data-lucide="flower" className="w-6 h-6"></i>
                                             </div>
                                         ) : (
-                                            <img src={currentVariant.img} className="w-12 h-12 rounded-lg object-cover ring-2 ring-[#c5a880]/50" />
+                                            <img src={currentVariant.img} className="w-12 h-12 rounded-lg object-cover ring-2 ring-[#c5a880]/50 flex-shrink-0" />
                                         )}
-                                        <div>
-                                            <p className="text-xs text-[#c5a880] font-bold">當前選擇款式</p>
-                                            <h5 className="text-sm font-bold text-white">{currentVariant.name}</h5>
+                                        <div className="min-w-0">
+                                            <p className="text-xs text-[#c5a880] font-bold truncate">當前選擇款式</p>
+                                            <h5 className="text-sm font-bold text-white truncate">{currentVariant.name}</h5>
                                         </div>
                                     </div>
-                                    <div className="text-right">
-                                        <span className="text-xs text-zinc-500">總預購金額</span>
+                                    <div className="text-right flex-shrink-0">
+                                        <span className="text-xs text-zinc-500 block">總預購金額</span>
                                         <p className="text-lg font-bold text-[#c5a880] font-cinzel">${BOUQUET_PRICE * quantity}</p>
                                     </div>
                                 </div>
 
                                 {/* 數量選擇 */}
-                                <div>
+                                <div className="w-full box-border">
                                     <label className="text-xs font-bold text-zinc-400 block mb-2 tracking-widest uppercase">購買數量</label>
                                     <div className="flex items-center gap-4">
                                         <button 
@@ -405,32 +412,32 @@
                                 </div>
 
                                 {/* 交貨地點 */}
-                                <div>
+                                <div className="w-full box-border">
                                     <label className="text-xs font-bold text-zinc-400 block mb-2 tracking-widest uppercase">交貨站點</label>
-                                    <div className="grid grid-cols-1 gap-2.5">
+                                    <div className="grid grid-cols-1 gap-2.5 w-full box-border">
                                         {LOCATIONS.map(loc => (
                                             <button 
                                                 key={loc}
                                                 type="button"
                                                 onClick={() => setLocation(loc)}
-                                                className={`p-4 rounded-xl border text-sm font-medium transition-all text-left flex items-center justify-between
+                                                className={`p-4 rounded-xl border text-base sm:text-lg font-bold transition-all text-left flex items-center justify-between w-full box-border
                                                 ${location === loc ? 'border-[#c5a880] bg-[#c5a880]/5 text-[#c5a880]' : 'border-zinc-800 bg-zinc-900 text-zinc-400 hover:border-zinc-700'}`}
                                             >
                                                 <span>{loc}</span>
-                                                {location === loc && <span className="w-2.5 h-2.5 rounded-full bg-[#c5a880] shadow-[0_0_8px_#c5a880]"></span>}
+                                                {location === loc && <span className="w-2.5 h-2.5 rounded-full bg-[#c5a880] shadow-[0_0_8px_#c5a880] flex-shrink-0 ml-4"></span>}
                                             </button>
                                         ))}
                                     </div>
                                 </div>
 
                                 {/* 預約日期 */}
-                                <div>
+                                <div className="w-full box-border">
                                     <label className="text-xs font-bold text-zinc-400 block mb-2 tracking-widest uppercase">交貨日期</label>
-                                    <div className="relative w-full">
+                                    <div className="relative w-full box-border overflow-hidden">
                                         <input 
                                             type="date" 
                                             min="2026-06-01" 
-                                            className="w-full box-border p-4 pl-12 pr-4 bg-zinc-900 border border-zinc-800 text-white rounded-xl outline-none focus:border-[#c5a880] font-cinzel text-base transition-all [color-scheme:dark]"
+                                            className="w-full box-border p-4 pl-12 pr-4 bg-zinc-900 border border-zinc-800 text-white rounded-xl outline-none focus:border-[#c5a880] font-cinzel text-lg sm:text-xl font-bold transition-all [color-scheme:dark]"
                                             value={pickupDate}
                                             onChange={(e) => setPickupDate(e.target.value)}
                                             required
@@ -445,24 +452,24 @@
                                 </div>
 
                                 {/* 客戶聯絡資訊 */}
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                    <div>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full box-border">
+                                    <div className="w-full box-border">
                                         <label className="text-xs font-bold text-zinc-400 block mb-2 tracking-widest uppercase">聯絡人姓名</label>
                                         <input 
                                             type="text" 
                                             placeholder="請輸入大名" 
-                                            className="w-full p-4 bg-zinc-900 border border-zinc-800 text-white placeholder:text-zinc-600 rounded-xl outline-none focus:border-[#c5a880] text-sm transition-colors"
+                                            className="w-full p-4 bg-zinc-900 border border-zinc-800 text-white placeholder:text-zinc-600 rounded-xl outline-none focus:border-[#c5a880] text-sm transition-colors box-border"
                                             value={custName}
                                             onChange={(e) => setCustName(e.target.value)}
                                             required
                                         />
                                     </div>
-                                    <div>
+                                    <div className="w-full box-border">
                                         <label className="text-xs font-bold text-zinc-400 block mb-2 tracking-widest uppercase">聯絡電話</label>
                                         <input 
                                             type="tel" 
                                             placeholder="例: 0912345678" 
-                                            className="w-full p-4 bg-zinc-900 border border-zinc-800 text-white placeholder:text-zinc-600 rounded-xl outline-none focus:border-[#c5a880] text-sm transition-colors"
+                                            className="w-full p-4 bg-zinc-900 border border-zinc-800 text-white placeholder:text-zinc-600 rounded-xl outline-none focus:border-[#c5a880] text-sm transition-colors box-border"
                                             value={custPhone}
                                             onChange={(e) => setCustPhone(e.target.value)}
                                             required
@@ -482,7 +489,7 @@
                                 <button 
                                     type="submit" 
                                     disabled={isSubmitting}
-                                    className={`w-full py-4 rounded-xl font-bold text-sm tracking-widest transition-all duration-300 flex items-center justify-center gap-2
+                                    className={`w-full py-4 rounded-xl font-bold text-sm tracking-widest transition-all duration-300 flex items-center justify-center gap-2 box-border
                                     ${isSubmitting ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed' : 'bg-[#c5a880] text-[#0d0d0d] hover:bg-[#b3966d] active:scale-95 shadow-lg shadow-[#c5a880]/10'}`}
                                 >
                                     {isSubmitting ? (
