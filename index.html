@@ -103,6 +103,7 @@
             const [isSubmitting, setIsSubmitting] = useState(false);
             const [submitStatus, setSubmitStatus] = useState(null); // 'success' | 'error'
             const [validationError, setValidationError] = useState(''); // 代替原生 alert
+            const [imageErrors, setImageErrors] = useState({}); // 追蹤載入失敗的圖片
 
             // 用於處理手勢滑動 (Swipe) 的狀態
             const touchStartX = useRef(0);
@@ -129,6 +130,7 @@
             // 滑動事件處理
             const handleTouchStart = (e) => {
                 touchStartX.current = e.targetTouches[0].clientX;
+                touchEndX.current = e.targetTouches[0].clientX; // 重設結束位置以防止誤判
             };
 
             const handleTouchMove = (e) => {
@@ -136,7 +138,7 @@
             };
 
             const handleTouchEnd = () => {
-                const threshold = 50; // 滑動判定閾值
+                const threshold = 40; // 稍微降低滑動判定閾值，讓手指卷動更靈敏
                 const diff = touchStartX.current - touchEndX.current;
                 if (Math.abs(diff) > threshold) {
                     if (diff > 0) {
@@ -145,6 +147,11 @@
                         handlePrev(); // 向右滑 -> 看上一張
                     }
                 }
+            };
+
+            // 圖片加載錯誤處理
+            const handleImageError = (id) => {
+                setImageErrors(prev => ({ ...prev, [id]: true }));
             };
 
             // 處理預訂提交
@@ -209,7 +216,13 @@
                             src="banner.jpg" 
                             alt="畢業小熊編織花束合照" 
                             className="absolute inset-0 w-full h-full object-cover brightness-[0.5]"
+                            onError={() => handleImageError('banner')}
                         />
+                        {imageErrors['banner'] && (
+                            <div className="absolute inset-0 bg-gradient-to-b from-zinc-900 to-[#0d0d0d] flex items-center justify-center">
+                                <span className="font-cinzel text-zinc-700 tracking-[0.3em] text-sm font-bold">SUNG LI SELECT</span>
+                            </div>
+                        )}
                         <div className="absolute inset-0 bg-gradient-to-t from-[#0d0d0d] via-transparent to-black/30"></div>
                         <div className="relative text-center pb-8 px-4 z-10 animate-in fade-in slide-in-from-bottom-6 duration-1000">
                             <p className="font-cinzel text-[#c5a880] tracking-[0.25em] text-xs sm:text-sm uppercase font-bold mb-2">Sung Li Select</p>
@@ -232,13 +245,20 @@
 
                         {/* 3D 輪播立體展示挑選區 */}
                         <section className="space-y-8 select-none">
+                            {/* 移除原本的滑動提示說明，保留精巧無雜訊的奢華大標題 */}
                             <h3 className="text-lg font-bold tracking-widest text-[#c5a880] text-center uppercase flex items-center justify-center gap-2">
                                 <i data-lucide="sparkles" className="w-4 h-4"></i>
-                                <span>左右滑動挑選花束款式</span>
+                                <span>選擇花束款式</span>
                             </h3>
                             
                             {/* 輪播主體 */}
-                            <div className="relative w-full h-[450px] flex items-center justify-center overflow-visible carousel-container py-4">
+                            <div 
+                                className="relative w-full h-[450px] flex items-center justify-center overflow-visible carousel-container py-4"
+                                onTouchStart={handleTouchStart}
+                                onTouchMove={handleTouchMove}
+                                onTouchEnd={handleTouchEnd}
+                                style={{ touchAction: 'pan-y' }}
+                            >
                                 
                                 {/* 左控制箭頭 */}
                                 <button 
@@ -249,22 +269,15 @@
                                 </button>
 
                                 {/* 卡片容器 */}
-                                <div 
-                                    className="relative w-full max-w-[280px] h-[390px] flex items-center justify-center"
-                                    onTouchStart={handleTouchStart}
-                                    onTouchMove={handleTouchMove}
-                                    onTouchEnd={handleTouchEnd}
-                                >
+                                <div className="relative w-full max-w-[280px] h-[390px] flex items-center justify-center">
                                     {VARIANTS.map((v, index) => {
-                                        // 核心 3D 位置演算法
-                                        let position = "center"; // center, left, right, hidden
+                                        let position = "center"; 
                                         const diff = index - activeIndex;
                                         
                                         if (diff === 0) position = "center";
                                         else if (diff === 1 || (diff === -2 && VARIANTS.length === 3)) position = "right";
                                         else if (diff === -1 || (diff === 2 && VARIANTS.length === 3)) position = "left";
                                         
-                                        // 依據位置派發樣式
                                         let styleClasses = "";
                                         if (position === "center") {
                                             styleClasses = "translate-x-0 scale-100 z-30 opacity-100 border-[#c5a880] ring-4 ring-[#c5a880]/30 shadow-[0_0_30px_rgba(197,168,128,0.4)]";
@@ -285,12 +298,20 @@
                                                 className={`absolute w-full h-full rounded-2xl overflow-hidden bg-zinc-950 border carousel-card cursor-pointer flex flex-col justify-between ${styleClasses}`}
                                             >
                                                 {/* 款式照片區 */}
-                                                <div className="relative h-[240px] overflow-hidden">
-                                                    <img 
-                                                        src={v.img} 
-                                                        alt={v.name} 
-                                                        className={`w-full h-full object-cover transition-transform duration-700 ${position === 'center' ? 'scale-100 brightness-110' : 'scale-95 brightness-50'}`}
-                                                    />
+                                                <div className="relative h-[240px] overflow-hidden bg-zinc-900">
+                                                    {imageErrors[v.id] ? (
+                                                        <div className="w-full h-full flex flex-col items-center justify-center text-[#c5a880]/40 p-6 text-center">
+                                                            <i data-lucide="flower" className="w-10 h-10 mb-3 animate-pulse"></i>
+                                                            <span className="font-cinzel text-xs tracking-wider font-bold">{v.badge}</span>
+                                                        </div>
+                                                    ) : (
+                                                        <img 
+                                                            src={v.img} 
+                                                            alt={v.name} 
+                                                            onError={() => handleImageError(v.id)}
+                                                            className={`w-full h-full object-cover transition-transform duration-700 ${position === 'center' ? 'scale-100 brightness-110' : 'scale-95 brightness-50'}`}
+                                                        />
+                                                    )}
                                                     <span className="absolute top-3 left-3 bg-zinc-950/80 backdrop-blur-sm text-zinc-300 font-bold text-[10px] px-2.5 py-1 rounded-full uppercase tracking-wider">
                                                         {v.badge}
                                                     </span>
@@ -343,7 +364,13 @@
                                 {/* 目前所選款式摘要 */}
                                 <div className="p-4 rounded-xl bg-zinc-900/50 border border-zinc-800 flex items-center justify-between gap-4">
                                     <div className="flex items-center gap-3">
-                                        <img src={currentVariant.img} className="w-12 h-12 rounded-lg object-cover ring-2 ring-[#c5a880]/50" />
+                                        {imageErrors[currentVariant.id] ? (
+                                            <div className="w-12 h-12 rounded-lg bg-zinc-900 border border-[#c5a880]/30 flex items-center justify-center text-[#c5a880]/60">
+                                                <i data-lucide="flower" className="w-6 h-6"></i>
+                                            </div>
+                                        ) : (
+                                            <img src={currentVariant.img} className="w-12 h-12 rounded-lg object-cover ring-2 ring-[#c5a880]/50" />
+                                        )}
                                         <div>
                                             <p className="text-xs text-[#c5a880] font-bold">當前選擇款式</p>
                                             <h5 className="text-sm font-bold text-white">{currentVariant.name}</h5>
@@ -400,7 +427,6 @@
                                 <div>
                                     <label className="text-xs font-bold text-zinc-400 block mb-2 tracking-widest uppercase">交貨日期</label>
                                     <div className="relative w-full">
-                                        {/* 強置寬度 100% 且以 box-border 防止溢出螢幕邊界 */}
                                         <input 
                                             type="date" 
                                             min="2026-06-01" 
