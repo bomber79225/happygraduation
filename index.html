@@ -113,9 +113,11 @@
             const [validationError, setValidationError] = useState(''); // 代替原生 alert
             const [imageErrors, setImageErrors] = useState({}); // 追蹤載入失敗的圖片
 
-            // 用於處理手勢滑動 (Swipe) 的狀態
+            // 用於處理手勢滑動與防止上下滾動衝突的狀態
             const touchStartX = useRef(0);
+            const touchStartY = useRef(0);
             const touchEndX = useRef(0);
+            const isScrolling = useRef(false); // 標記是否為上下滾動網頁
 
             useEffect(() => {
                 if (typeof lucide !== 'undefined') lucide.createIcons();
@@ -135,24 +137,44 @@
                 setActiveIndex((prev) => (prev + 1) % VARIANTS.length);
             };
 
-            // 滑動事件處理
+            // 手勢起點
             const handleTouchStart = (e) => {
                 touchStartX.current = e.targetTouches[0].clientX;
-                touchEndX.current = e.targetTouches[0].clientX; // 重設結束位置以防止誤判
+                touchStartY.current = e.targetTouches[0].clientY;
+                touchEndX.current = e.targetTouches[0].clientX; // 初始化結束點
+                isScrolling.current = false; // 重設滾動狀態
             };
 
+            // 手勢移動中：智慧分析滑動軌跡
             const handleTouchMove = (e) => {
-                touchEndX.current = e.targetTouches[0].clientX;
+                const currentX = e.targetTouches[0].clientX;
+                const currentY = e.targetTouches[0].clientY;
+                
+                touchEndX.current = currentX;
+
+                const diffX = Math.abs(touchStartX.current - currentX);
+                const diffY = Math.abs(touchStartY.current - currentY);
+
+                // 如果垂直方向滑動大於水平，且超過一定程度，判定為「網頁上下滾動」
+                // 此時將狀態鎖定，手勢結束時便不會觸發款式切換
+                if (diffY > diffX && diffY > 10) {
+                    isScrolling.current = true;
+                }
             };
 
+            // 手勢結束
             const handleTouchEnd = () => {
-                const threshold = 40; // 稍微降低滑動判定閾值，讓手指卷動更靈敏
-                const diff = touchStartX.current - touchEndX.current;
-                if (Math.abs(diff) > threshold) {
-                    if (diff > 0) {
-                        handleNext(); // 向左滑 -> 看下一張
+                // 如果被判定為上下滾網頁，直接略過輪播切換邏輯
+                if (isScrolling.current) return;
+
+                const diffX = touchStartX.current - touchEndX.current;
+                const threshold = 50; // 判定為滑動的最小像素寬度
+
+                if (Math.abs(diffX) > threshold) {
+                    if (diffX > 0) {
+                        handleNext(); // 向左滑動 -> 下一款
                     } else {
-                        handlePrev(); // 向右滑 -> 看上一張
+                        handlePrev(); // 向右滑動 -> 上一款
                     }
                 }
             };
@@ -258,7 +280,7 @@
                                 <span>選擇花束款式</span>
                             </h3>
                             
-                            {/* 輪播主體 */}
+                            {/* 輪播主體 (已導入防誤觸手勢監聽) */}
                             <div 
                                 className="relative w-full h-[450px] flex items-center justify-center overflow-visible carousel-container py-4"
                                 onTouchStart={handleTouchStart}
@@ -442,7 +464,7 @@
                                             onChange={(e) => setPickupDate(e.target.value)}
                                             required
                                         />
-                                        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-[#c5a880] pointer-events-none">
+                                        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-[#c5a880] pointer-none">
                                             <i data-lucide="calendar" className="w-5 h-5"></i>
                                         </div>
                                     </div>
