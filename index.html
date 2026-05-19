@@ -94,17 +94,17 @@
             }
         ];
 
-        // 交貨地點
+        // 交貨地點物件化，支援標籤與副標題顯示
         const LOCATIONS = [
-            "捷運江子翠站五號出口",
-            "捷運蘆洲站三號出口",
-            "東園派出所(舊址)"
+            { name: "捷運江子翠站五號出口", badge: "定點面交", urgent: false },
+            { name: "捷運蘆洲站三號出口", badge: "定點面交", urgent: false },
+            { name: "自取急件 (東園派出所舊址)", badge: "急單專用", urgent: true, address: "台北市萬華區長泰街130號" }
         ];
 
         const App = () => {
             const [activeIndex, setActiveIndex] = useState(0); // 當前選中款式的索引 (0:藍, 1:粉, 2:黃)
             const [quantity, setQuantity] = useState(1);
-            const [location, setLocation] = useState(LOCATIONS[0]);
+            const [location, setLocation] = useState(LOCATIONS[0].name);
             const [pickupDate, setPickupDate] = useState('2026-06-01');
             const [custName, setCustName] = useState('');
             const [custPhone, setCustPhone] = useState('');
@@ -112,6 +112,7 @@
             const [submitStatus, setSubmitStatus] = useState(null); // 'success' | 'error'
             const [validationError, setValidationError] = useState(''); // 代替原生 alert
             const [imageErrors, setImageErrors] = useState({}); // 追蹤載入失敗的圖片
+            const [addressCopied, setAddressCopied] = useState(false); // 複製提示狀態
 
             // 用於處理手勢滑動與防止上下滾動衝突的狀態
             const touchStartX = useRef(0);
@@ -121,7 +122,7 @@
 
             useEffect(() => {
                 if (typeof lucide !== 'undefined') lucide.createIcons();
-            }, [submitStatus, activeIndex]);
+            }, [submitStatus, activeIndex, location, addressCopied]);
 
             // 計算當前選擇款式的詳細資訊
             const currentVariant = useMemo(() => {
@@ -156,7 +157,6 @@
                 const diffY = Math.abs(touchStartY.current - currentY);
 
                 // 如果垂直方向滑動大於水平，且超過一定程度，判定為「網頁上下滾動」
-                // 此時將狀態鎖定，手勢結束時便不會觸發款式切換
                 if (diffY > diffX && diffY > 10) {
                     isScrolling.current = true;
                 }
@@ -164,7 +164,6 @@
 
             // 手勢結束
             const handleTouchEnd = () => {
-                // 如果被判定為上下滾網頁，直接略過輪播切換邏輯
                 if (isScrolling.current) return;
 
                 const diffX = touchStartX.current - touchEndX.current;
@@ -182,6 +181,20 @@
             // 圖片加載錯誤處理
             const handleImageError = (id) => {
                 setImageErrors(prev => ({ ...prev, [id]: true }));
+            };
+
+            // 一鍵複製地址邏輯
+            const handleCopyAddress = (e, addr) => {
+                e.stopPropagation();
+                const tempInput = document.createElement("input");
+                tempInput.value = addr;
+                document.body.appendChild(tempInput);
+                tempInput.select();
+                document.execCommand("copy"); // 安全相容的複製語法
+                document.body.removeChild(tempInput);
+                
+                setAddressCopied(true);
+                setTimeout(() => setAddressCopied(false), 2000);
             };
 
             // 處理預訂提交
@@ -264,12 +277,12 @@
                     {/* 主體內容容器 */}
                     <main className="max-w-4xl w-full px-4 py-12 space-y-16 box-border overflow-hidden">
                         
-                        {/* 介紹區塊 */}
+                        {/* 介紹區塊 (已移除附贈字樣) */}
                         <section className="text-center max-w-xl mx-auto space-y-4">
                             <h2 className="text-2xl font-bold text-[#c5a880] tracking-wider">限時限量 尊榮預定</h2>
                             <div className="h-[1px] w-12 bg-[#c5a880] mx-auto"></div>
                             <p className="text-sm text-slate-400 leading-relaxed">
-                                由我們精心手工勾針編織的向日葵與超萌畢業小熊，象徵陽光璀璨的前程。每束均附贈專屬禮袋與精緻香氛。
+                                由我們精心手工勾針編織的向日葵與超萌畢業小熊，象徵陽光璀璨的前程。
                             </p>
                         </section>
 
@@ -280,7 +293,7 @@
                                 <span>選擇花束款式</span>
                             </h3>
                             
-                            {/* 輪播主體 (已導入防誤觸手勢監聽) */}
+                            {/* 輪播主體 */}
                             <div 
                                 className="relative w-full h-[450px] flex items-center justify-center overflow-visible carousel-container py-4"
                                 onTouchStart={handleTouchStart}
@@ -386,7 +399,27 @@
                         <section className="bg-zinc-950 border border-zinc-900 rounded-3xl p-5 sm:p-10 shadow-2xl relative overflow-hidden box-border max-w-full">
                             <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[#c5a880] to-transparent"></div>
                             
-                            <h3 className="text-xl font-bold tracking-widest text-[#c5a880] text-center mb-8">2. 填寫預約交貨資訊</h3>
+                            {/* 拍照上傳特別解鎖卡片 (行銷機制：粉專留言送提袋) */}
+                            <div className="max-w-md mx-auto mb-10 p-5 rounded-2xl bg-zinc-900/60 border border-[#c5a880]/30 shadow-lg relative overflow-hidden">
+                                <div className="absolute top-0 right-0 bg-[#c5a880] text-[#0d0d0d] text-[10px] font-black px-3 py-1 rounded-bl-xl uppercase tracking-widest">
+                                    驚喜回饋
+                                </div>
+                                <div className="flex items-start gap-3.5">
+                                    <div className="w-10 h-10 rounded-xl bg-[#c5a880]/10 border border-[#c5a880]/40 flex items-center justify-center text-[#c5a880] flex-shrink-0">
+                                        <i data-lucide="gift" className="w-5 h-5 animate-pulse"></i>
+                                    </div>
+                                    <div>
+                                        <h4 className="text-sm font-bold text-[#c5a880] tracking-wide mb-1 flex items-center gap-1.5">
+                                            <span>解鎖花束精美提袋</span>
+                                        </h4>
+                                        <p className="text-xs sm:text-sm text-zinc-300 leading-relaxed font-serif-tc font-bold">
+                                            取貨時拍照上傳臉書粉專，再送精美花束提袋唷！
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <h3 className="text-xl font-bold tracking-widest text-[#c5a880] text-center mb-8">填寫預約交貨資訊</h3>
 
                             <form onSubmit={handleOrderSubmit} className="space-y-6 max-w-full sm:max-w-lg mx-auto box-border overflow-hidden">
                                 
@@ -433,23 +466,53 @@
                                     </div>
                                 </div>
 
-                                {/* 交貨地點 */}
+                                {/* 交貨地點 (優化標籤顯示) */}
                                 <div className="w-full box-border">
                                     <label className="text-xs font-bold text-zinc-400 block mb-2 tracking-widest uppercase">交貨站點</label>
                                     <div className="grid grid-cols-1 gap-2.5 w-full box-border">
                                         {LOCATIONS.map(loc => (
                                             <button 
-                                                key={loc}
+                                                key={loc.name}
                                                 type="button"
-                                                onClick={() => setLocation(loc)}
-                                                className={`p-4 rounded-xl border text-base sm:text-lg font-bold transition-all text-left flex items-center justify-between w-full box-border
-                                                ${location === loc ? 'border-[#c5a880] bg-[#c5a880]/5 text-[#c5a880]' : 'border-zinc-800 bg-zinc-900 text-zinc-400 hover:border-zinc-700'}`}
+                                                onClick={() => setLocation(loc.name)}
+                                                className={`p-4 rounded-xl border text-base sm:text-lg font-bold transition-all text-left flex items-center justify-between w-full box-border relative overflow-hidden
+                                                ${location === loc.name ? 'border-[#c5a880] bg-[#c5a880]/5 text-[#c5a880]' : 'border-zinc-800 bg-zinc-900 text-zinc-400 hover:border-zinc-700'}`}
                                             >
-                                                <span>{loc}</span>
-                                                {location === loc && <span className="w-2.5 h-2.5 rounded-full bg-[#c5a880] shadow-[0_0_8px_#c5a880] flex-shrink-0 ml-4"></span>}
+                                                <div className="flex items-center gap-2">
+                                                    <span>{loc.name}</span>
+                                                    {loc.urgent && (
+                                                        <span className="text-[9px] bg-amber-500/20 text-[#c5a880] px-2 py-0.5 rounded border border-[#c5a880]/30 font-black animate-pulse">
+                                                            {loc.badge}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                {location === loc.name && <span className="w-2.5 h-2.5 rounded-full bg-[#c5a880] shadow-[0_0_8px_#c5a880] flex-shrink-0 ml-4"></span>}
                                             </button>
                                         ))}
                                     </div>
+
+                                    {/* 展開的自取地址與一鍵複製系統 (當選取東園派出所舊址時展開) */}
+                                    {location.includes("東園") && (
+                                        <div className="mt-3 p-4 rounded-xl bg-zinc-900 border border-[#c5a880]/30 flex items-center justify-between gap-4 animate-in fade-in slide-in-from-top-3 duration-300 w-full box-border">
+                                            <div className="flex items-start gap-2.5 min-w-0">
+                                                <i data-lucide="map-pin" className="w-5 h-5 text-[#c5a880] flex-shrink-0 mt-0.5"></i>
+                                                <div className="min-w-0">
+                                                    <p className="text-[10px] text-[#c5a880] font-black uppercase tracking-widest">自取地址 (東園派出所舊址)</p>
+                                                    <p className="text-sm font-bold text-white leading-snug break-words">
+                                                        台北市萬華區長泰街130號
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={(e) => handleCopyAddress(e, "台北市萬華區長泰街130號")}
+                                                className="px-3.5 py-2 rounded-lg bg-[#c5a880]/10 hover:bg-[#c5a880]/20 border border-[#c5a880]/30 text-[#c5a880] font-bold text-xs flex items-center gap-1 flex-shrink-0 transition-all active:scale-95"
+                                            >
+                                                <i data-lucide={addressCopied ? "check" : "copy"} className="w-3.5 h-3.5"></i>
+                                                <span>{addressCopied ? "已複製" : "複製地址"}</span>
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* 預約日期 */}
